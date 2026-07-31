@@ -1,7 +1,14 @@
 // Minimaler Service Worker: legt die App-Dateien im Cache ab,
 // damit der Rundgang auch ohne Empfang funktioniert.
-const CACHE = "rundgang-v1";
-const DATEIEN = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "rundgang-v2";
+const DATEIEN = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./manifest.webmanifest",
+  "./icon.svg"
+];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(DATEIEN)));

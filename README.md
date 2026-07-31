@@ -1,61 +1,95 @@
 # Rundgang-App
 
-Eine sehr einfache App für Sicherheitsrundgänge: 5 Kontrollpunkte zum Abhaken und
-ein Textfeld für besondere Vorkommnisse.
+Eine einfache App für Sicherheitsrundgänge: Kontrollpunkte abhaken – per Hand
+oder per NFC-Tag – und besondere Vorkommnisse festhalten.
 
 Die App läuft im Browser des Smartphones und kann auf den Startbildschirm gelegt
-werden – sie sieht und verhält sich dann wie eine normale App. Es ist **kein**
-App Store, kein Entwicklerkonto und keine Installation nötig.
+werden. Es ist **kein** App Store, kein Entwicklerkonto und keine Installation
+nötig.
 
 ## Was die App kann
 
-- 5 Kontrollpunkte abhaken
-- Beim Abhaken wird automatisch die Uhrzeit festgehalten
+- Kontrollpunkte abhaken, mit automatischem Zeitstempel
+- **Kontrollpunkte selbst bearbeiten:** umbenennen, hinzufügen, löschen
+- **NFC-Tags:** Handy an den Tag halten, der Punkt hakt sich selbst ab
 - Textfeld für besondere Vorkommnisse
-- Alles wird sofort auf dem Handy gespeichert (auch wenn die App geschlossen wird)
+- Alles wird sofort auf dem Handy gespeichert
 - Funktioniert offline, z. B. in der Tiefgarage oder im Keller
-- Knopf „Neuer Rundgang“ setzt alles für die nächste Schicht zurück
+- „Neuer Rundgang" setzt die Haken zurück – die Kontrollpunkte bleiben erhalten
+
+## Kontrollpunkte bearbeiten
+
+Oben auf **Bearbeiten** tippen. Dann lässt sich jeder Name direkt überschreiben,
+unten neue Punkte hinzufügen und einzelne löschen. **Fertig** schließt den
+Modus. Änderungen gelten sofort und bleiben gespeichert – es muss dafür nichts
+mehr im Code geändert werden.
+
+## NFC: Zwei Wege, weil iPhone und Android sich unterscheiden
+
+Das ist der wichtigste Punkt bei NFC: **Web-Apps können NFC nur unter Android
+(Chrome) selbst lesen.** Apple erlaubt das im iPhone-Browser nicht. Deshalb
+unterstützt die App zwei Wege, die sich mit denselben Tags kombinieren lassen.
+
+### Weg 1 – Android: Scan in der App
+
+1. **Bearbeiten** → beim gewünschten Punkt auf **Tag zuordnen**
+2. Handy an den Tag halten – die Kennung des Tags wird dem Punkt zugeordnet
+3. **Fertig** → oben auf **NFC-Scan starten**
+4. Ab jetzt hakt jeder erkannte Tag seinen Punkt automatisch ab
+
+### Weg 2 – iPhone und Android: Tag mit Adresse beschreiben
+
+1. Auf einem **Android**-Handy: **Bearbeiten** → **Tag beschreiben**
+2. Handy an den Tag halten – darauf wird die Web-Adresse des Punktes
+   gespeichert, z. B. `https://…/Rundgang-App/#punkt=p3f9a1`
+3. Dieser Tag funktioniert danach auf **beiden** Systemen: iOS erkennt solche
+   Adress-Tags von selbst, zeigt eine Meldung, und beim Antippen öffnet sich die
+   App mit dem bereits abgehakten Punkt
+
+Zum Programmieren der Tags wird also einmalig ein Android-Handy gebraucht;
+benutzt werden können sie danach auch mit iPhones.
+
+### Passende Tags kaufen
+
+- **NTAG213 / NTAG215** sind Standard und funktionieren mit allen Handys
+- Für Montage auf **Metall** (Türen, Schränke, Zäune) unbedingt
+  „On-Metal"-Tags nehmen – normale Tags funktionieren dort nicht
+- Für draußen: wetterfeste Ausführung (IP67) oder Hartplastik-Tokens
 
 ## Wichtig zu wissen
 
-Die Daten liegen **nur lokal auf dem jeweiligen Handy**, im Speicher des Browsers.
-Es gibt noch keinen Server, keine Anmeldung und keine Auswertung. Wer den
-Browser-Speicher löscht, löscht auch die Rundgänge. Für einen echten Nachweis
-gegenüber dem Kunden brauchen wir später einen Export (z. B. PDF oder E-Mail) –
-das ist der nächste sinnvolle Schritt.
+**Die Daten liegen nur lokal auf dem jeweiligen Handy**, im Speicher des
+Browsers. Es gibt keinen Server, keine Anmeldung und keine Auswertung. Wer den
+Browser-Speicher löscht, löscht auch die Rundgänge. Als Nachweis gegenüber
+einem Kunden reicht das noch nicht.
+
+**NFC ist ein Anwesenheitsnachweis, aber kein Fälschungsschutz.** Die Kennung
+eines gewöhnlichen Tags lässt sich mit passender Technik auslesen und
+kopieren. Gegenüber einem reinen Haken auf dem Display ist es ein deutlicher
+Fortschritt – als gerichtsfester Beweis taugt es nicht.
+
+**Datenschutz:** Sobald festgehalten wird, welcher Mitarbeiter wann wo war,
+entstehen personenbezogene Daten und eine Form von Leistungskontrolle. In
+Deutschland ist dafür je nach Betrieb eine Betriebsvereinbarung nötig, und die
+Beschäftigten müssen informiert werden. Das sollte vor dem Echteinsatz geklärt
+sein.
 
 ## Dateien
 
 | Datei | Wozu |
 |---|---|
-| `index.html` | Die komplette App: Aussehen und Logik |
-| `manifest.webmanifest` | Damit die App auf den Startbildschirm gelegt werden kann |
+| `index.html` | Aufbau der Seite |
+| `app.js` | Die gesamte Logik: Abhaken, Bearbeiten, NFC, Speichern |
+| `styles.css` | Aussehen |
+| `manifest.webmanifest` | Damit die App auf den Startbildschirm kann |
 | `sw.js` | Sorgt dafür, dass die App offline funktioniert |
 | `icon.svg` | Das App-Symbol |
 
-## Kontrollpunkte ändern
-
-In `index.html` ganz oben im Skript-Teil steht die Liste. Einfach die Texte
-zwischen den Anführungszeichen ersetzen:
-
-```js
-const KONTROLLPUNKTE = [
-  "Haupteingang",
-  "Tiefgarage",
-  "Lager / Warenannahme",
-  "Bürotrakt 1. OG",
-  "Notausgang Hinterhof"
-];
-```
-
-Es dürfen auch mehr oder weniger als 5 Punkte sein.
-
 ## Schritt für Schritt: App aufs Handy bringen
 
-Der Code liegt bereits auf GitHub im Repository `CitadeltaCyber/Rundgang-App`.
 Damit die App über einen Link erreichbar ist, schalten wir GitHub Pages ein –
-das ist eine kostenlose Funktion von GitHub, die Dateien aus einem Repository
-als Webseite veröffentlicht.
+eine kostenlose Funktion von GitHub, die Dateien aus einem Repository als
+Webseite veröffentlicht.
 
 1. Repository auf github.com öffnen: `CitadeltaCyber/Rundgang-App`
 2. Oben auf **Settings** klicken
@@ -74,11 +108,5 @@ als Webseite veröffentlicht.
 **iPhone (Safari):** Adresse in **Safari** öffnen (nicht Chrome) → Teilen-Symbol
 unten → *Zum Home-Bildschirm*
 
-Danach liegt das Symbol auf dem Startbildschirm und die App öffnet sich im
-Vollbild, ohne Adressleiste.
-
-### Vorher kurz am Rechner testen
-
-Doppelklick auf `index.html` genügt für einen ersten Blick. Der Offline-Modus
-funktioniert dabei noch nicht – der braucht eine echte Adresse (https), also
-GitHub Pages.
+NFC funktioniert nur über eine echte `https`-Adresse, also über GitHub Pages –
+beim bloßen Öffnen der Datei vom Rechner aus bleibt der NFC-Knopf wirkungslos.
