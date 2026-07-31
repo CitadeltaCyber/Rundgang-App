@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>x</title></head><body>
+<div id="app"><header><div><h1>R</h1><span id="objekt"></span></div><span id="datum"></span></header>
+<p id="fortschritt"></p><label class="feld" for="mitarbeiter">M</label><input id="mitarbeiter" type="text">
+<div class="knopfreihe"><button id="nfcScan" aria-pressed="false"></button><button id="admin" aria-pressed="false"></button></div>
+<p id="meldung"></p><ul id="liste"></ul>
+<div id="adminBereich" hidden><button id="punktHinzu"></button>
+<div class="knopfreihe"><button id="objektAendern"></button><button id="pinAendern"></button><button id="abmelden"></button></div></div>
+<textarea id="vorkommnisse"></textarea>
+<div class="knopfreihe"><button id="pdf"></button><button id="teilen"></button><button id="drucken"></button></div>
+<footer><span id="status"></span><button id="neu"></button></footer></div>
+<div id="druck"></div><div id="ausgabe"></div>
+<script src="pdf.js"></script><script src="app.js"></script>
+<script>
+const log = [];
+(async () => {
+try {
+  window.confirm = () => true;
+  window.print = () => { log.push("print-aufgerufen"); };
+  // Mitarbeiter + Haken + Vorkommnisse
+  const m = document.getElementById('mitarbeiter');
+  m.value = "M. Keller"; m.dispatchEvent(new Event('input'));
+  document.querySelector('#liste input[type=checkbox]').click();
+  const v = document.getElementById('vorkommnisse');
+  v.value = "Tür zur Tiefgarage stand offen, um 22:14 verschlossen.\nUnbekanntes Fahrzeug auf Stellplatz 7 – Kennzeichen notiert."; v.dispatchEvent(new Event('input'));
+  log.push("A:" + document.getElementById('fortschritt').textContent);
+
+  // Admin mit falschem PIN
+  window.prompt = () => "9999";
+  document.getElementById('admin').click();
+  await new Promise(r => setTimeout(r, 60));
+  log.push("B:falsch=" + document.getElementById('meldung').textContent.slice(0,12) + ",panel=" + !document.getElementById('adminBereich').hidden);
+
+  // Admin mit richtigem PIN
+  window.prompt = () => "1234";
+  document.getElementById('admin').click();
+  await new Promise(r => setTimeout(r, 60));
+  log.push("C:panel=" + !document.getElementById('adminBereich').hidden + ",felder=" + document.querySelectorAll('#liste input[type=text]').length);
+
+  // Objekt setzen
+  window.prompt = () => "Logistikzentrum Nord";
+  document.getElementById('objektAendern').click();
+  log.push("D:objekt=" + document.getElementById('objekt').textContent);
+
+  // PIN aendern
+  window.prompt = () => "8642";
+  document.getElementById('pinAendern').click();
+  await new Promise(r => setTimeout(r, 80));
+  log.push("E:pinGespeichert=" + (localStorage.getItem('rundgang.admin.v1')||'').slice(0,10) + ",meldung=" + document.getElementById('meldung').textContent.slice(0,10));
+
+  // alter PIN darf nicht mehr gehen
+  document.getElementById('abmelden').click();
+  window.prompt = () => "1234";
+  document.getElementById('admin').click();
+  await new Promise(r => setTimeout(r, 80));
+  log.push("F:altPinPanel=" + !document.getElementById('adminBereich').hidden);
+  window.prompt = () => "8642";
+  document.getElementById('admin').click();
+  await new Promise(r => setTimeout(r, 80));
+  log.push("G:neuPinPanel=" + !document.getElementById('adminBereich').hidden);
+  document.getElementById('admin').click(); // Fertig
+
+  // Drucken
+  document.getElementById('drucken').click();
+  log.push("H:druckZeilen=" + document.querySelectorAll('#druck p').length);
+
+  // PDF
+  const blob = berichtPdf();
+  log.push("I:pdfBytes=" + blob.size);
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = ""; for (const b of buf) bin += String.fromCharCode(b);
+  document.getElementById('ausgabe').textContent = btoa(bin);
+} catch (e) { log.push("FEHLER:" + e.message); }
+document.title = log.join(" || ");
+})();
+</script></body></html>

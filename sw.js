@@ -1,11 +1,12 @@
 // Minimaler Service Worker: legt die App-Dateien im Cache ab,
 // damit der Rundgang auch ohne Empfang funktioniert.
-const CACHE = "rundgang-v2";
+const CACHE = "rundgang-v3";
 const DATEIEN = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./pdf.js",
   "./manifest.webmanifest",
   "./icon.svg"
 ];

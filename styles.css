@@ -30,7 +30,29 @@ header {
 
 h1 { font-size: 22px; margin: 0; }
 
-#datum { color: var(--muted); font-size: 14px; }
+#objekt { color: var(--muted); font-size: 14px; }
+
+#datum { color: var(--muted); font-size: 14px; white-space: nowrap; }
+
+/* --- Mitarbeiterfeld --- */
+label.feld {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+#mitarbeiter {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  min-height: 48px;
+}
 
 #fortschritt { color: var(--muted); font-size: 14px; margin: 4px 0 14px; }
 
@@ -71,10 +93,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline-offset: 2px;
 }
 
-/* --- NFC-Leiste --- */
-#nfcLeiste { display: flex; gap: 10px; margin-bottom: 12px; }
+/* --- Knopfreihen --- */
+.knopfreihe { display: flex; gap: 10px; margin-bottom: 12px; }
 
-#nfcLeiste button { flex: 1; }
+.knopfreihe button { flex: 1; }
+
+.knopfreihe.umbruch { flex-wrap: wrap; }
+
+.knopfreihe.umbruch button { flex: 1 1 120px; }
+
+#adminBereich {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 4px;
+}
+
+#adminBereich #punktHinzu { width: 100%; margin-bottom: 10px; }
 
 #meldung {
   display: none;
@@ -175,3 +210,27 @@ footer {
 }
 
 #status { color: var(--muted); font-size: 13px; }
+
+/* --- Druckansicht --- */
+#druck { display: none; }
+
+@media print {
+  body { background: #fff; color: #000; padding: 0; font-size: 11pt; }
+
+  #app { display: none; }
+
+  #druck { display: block; }
+
+  #druck p {
+    margin: 0 0 3pt;
+    display: flex;
+    justify-content: space-between;
+    gap: 16pt;
+  }
+
+  #druck .d-titel { font-size: 17pt; font-weight: 700; margin-bottom: 10pt; }
+
+  #druck .d-kopf { font-weight: 700; margin-top: 8pt; }
+
+  #druck .d-klein { font-size: 8pt; color: #555; margin-top: 10pt; }
+}

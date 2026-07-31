@@ -11,31 +11,57 @@
 </head>
 <body>
 
-<header>
-  <h1>Rundgang</h1>
-  <span id="datum"></span>
-</header>
-<p id="fortschritt"></p>
+<div id="app">
+  <header>
+    <div>
+      <h1>Rundgang</h1>
+      <span id="objekt"></span>
+    </div>
+    <span id="datum"></span>
+  </header>
+  <p id="fortschritt"></p>
 
-<div id="nfcLeiste">
-  <button id="nfcScan" type="button" aria-pressed="false">NFC-Scan starten</button>
-  <button id="bearbeiten" type="button" aria-pressed="false">Bearbeiten</button>
+  <label class="feld" for="mitarbeiter">Mitarbeiter (Name oder Kürzel)</label>
+  <input id="mitarbeiter" type="text" autocomplete="name" placeholder="z. B. M. Keller">
+
+  <div class="knopfreihe">
+    <button id="nfcScan" type="button" aria-pressed="false">NFC-Scan starten</button>
+    <button id="admin" type="button" aria-pressed="false">Admin</button>
+  </div>
+
+  <p id="meldung" role="status"></p>
+
+  <ul id="liste"></ul>
+
+  <div id="adminBereich" hidden>
+    <button id="punktHinzu" class="klein" type="button">+ Kontrollpunkt hinzufügen</button>
+    <div class="knopfreihe umbruch">
+      <button id="objektAendern" class="klein" type="button">Objekt ändern</button>
+      <button id="pinAendern" class="klein" type="button">PIN ändern</button>
+      <button id="abmelden" class="klein" type="button">Abmelden</button>
+    </div>
+  </div>
+
+  <h2>Besondere Vorkommnisse</h2>
+  <textarea id="vorkommnisse" placeholder="Keine besonderen Vorkommnisse."></textarea>
+
+  <h2>Bericht</h2>
+  <div class="knopfreihe umbruch">
+    <button id="pdf" class="haupt" type="button">Bericht als PDF</button>
+    <button id="teilen" type="button">Weiterleiten</button>
+    <button id="drucken" type="button">Drucken</button>
+  </div>
+
+  <footer>
+    <span id="status">Automatisch gespeichert</span>
+    <button id="neu" type="button">Neuer Rundgang</button>
+  </footer>
 </div>
 
-<p id="meldung" role="status"></p>
+<!-- Wird nur beim Drucken sichtbar und vorher mit dem Bericht gefüllt. -->
+<div id="druck" aria-hidden="true"></div>
 
-<ul id="liste"></ul>
-
-<button id="punktHinzu" class="klein" type="button" hidden>+ Kontrollpunkt hinzufügen</button>
-
-<h2>Besondere Vorkommnisse</h2>
-<textarea id="vorkommnisse" placeholder="Keine besonderen Vorkommnisse."></textarea>
-
-<footer>
-  <span id="status">Automatisch gespeichert</span>
-  <button id="neu" type="button">Neuer Rundgang</button>
-</footer>
-
+<script src="pdf.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
