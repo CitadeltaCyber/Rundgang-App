@@ -15,7 +15,7 @@
   <header>
     <div>
       <h1>Rundgang</h1>
-      <span id="objekt"></span>
+      <select id="objektAuswahl" aria-label="Objekt auswählen"></select>
     </div>
     <div class="datumUhr">
       <span id="datum"></span>
@@ -43,7 +43,11 @@
   <div id="adminBereich" hidden>
     <button id="punktHinzu" class="klein" type="button">+ Kontrollpunkt hinzufügen</button>
     <div class="knopfreihe umbruch">
-      <button id="objektAendern" class="klein" type="button">Objekt ändern</button>
+      <button id="objektHinzufuegen" class="klein" type="button">+ Objekt</button>
+      <button id="objektUmbenennen" class="klein" type="button">Objekt umbenennen</button>
+      <button id="objektLoeschen" class="klein gefahr" type="button">Objekt löschen</button>
+    </div>
+    <div class="knopfreihe umbruch">
       <button id="pinAendern" class="klein" type="button">PIN ändern</button>
       <button id="abmelden" class="klein" type="button">Abmelden</button>
     </div>
@@ -57,6 +61,7 @@
     <button id="pdf" class="haupt" type="button">Bericht als PDF</button>
     <button id="teilen" type="button">Weiterleiten</button>
     <button id="drucken" type="button">Drucken</button>
+    <button id="verlauf" type="button">Verlauf</button>
   </div>
 
   <footer>
@@ -68,6 +73,12 @@
 
 <!-- Wird nur beim Drucken sichtbar und vorher mit dem Bericht gefüllt. -->
 <div id="druck" aria-hidden="true"></div>
+
+<dialog id="verlaufDialog">
+  <h2>Frühere Berichte</h2>
+  <ul id="verlaufListe"></ul>
+  <button id="verlaufSchliessen" class="klein" type="button">Schließen</button>
+</dialog>
 
 <script src="pdf.js"></script>
 <script src="app.js"></script>

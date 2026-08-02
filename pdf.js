@@ -3,10 +3,13 @@
  *
  * Aufruf:  pdfErzeugen([{ text, rechts, stil }, ...])  ->  Blob
  * Stile:   "titel" | "kopf" | "normal" | "klein"
+ * Fotos:   { bild: "data:image/jpeg;base64,...", breitePx, hoehePx }
  */
 
 const SEITE = { breite: 595, hoehe: 842, rand: 50 }; // A4 in PDF-Punkten
 const SPALTE_RECHTS = 330;
+const BILD_MAX_BREITE = 260; // pt
+const BILD_MAX_HOEHE = 320;  // pt
 
 const STILE = {
   titel:  { schrift: "F2", groesse: 16, hoehe: 26 },
@@ -24,7 +27,7 @@ function latin1(text) {
     .replace(/[–—]/g, "-")
     .replace(/[·•]/g, "-")
     .replace(/…/g, "...")
-    .replace(/ /g, " ");
+    .replace(/ /g, " ");
   let raus = "";
   for (const zeichen of ersetzt) {
     raus += zeichen.charCodeAt(0) <= 255 ? zeichen : "?";
@@ -41,13 +44,49 @@ function textBefehl(inhalt, schrift, groesse, x, y) {
     x + " " + y + " Td (" + maskieren(latin1(inhalt)) + ") Tj ET\n";
 }
 
+function jpegBytesAusDatenUrl(dataUrl) {
+  return atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
+}
+
+function bildGroesse(breitePx, hoehePx) {
+  let breite = Math.min(BILD_MAX_BREITE, SEITE.breite - 2 * SEITE.rand);
+  let hoehe = breite * (hoehePx / breitePx);
+  if (hoehe > BILD_MAX_HOEHE) {
+    hoehe = BILD_MAX_HOEHE;
+    breite = hoehe * (breitePx / hoehePx);
+  }
+  return { breite, hoehe };
+}
+
 function pdfErzeugen(zeilen) {
-  // 1. Zeilen auf Seiten verteilen
+  // 1. Zeilen (Text und Fotos) auf Seiten verteilen.
   const seiten = [];
+  const bilder = []; // { bytes, breitePx, hoehePx, name }
   let strom = "";
   let y = SEITE.hoehe - SEITE.rand;
 
   for (const zeile of zeilen) {
+    if (zeile.bild) {
+      const { breite, hoehe } = bildGroesse(zeile.breitePx, zeile.hoehePx);
+      if (y - hoehe < SEITE.rand) {
+        seiten.push(strom);
+        strom = "";
+        y = SEITE.hoehe - SEITE.rand;
+      }
+      y -= hoehe;
+      const name = "Im" + bilder.length;
+      bilder.push({
+        bytes: jpegBytesAusDatenUrl(zeile.bild),
+        breitePx: zeile.breitePx,
+        hoehePx: zeile.hoehePx,
+        name
+      });
+      strom += "q " + breite.toFixed(2) + " 0 0 " + hoehe.toFixed(2) + " " +
+        SEITE.rand + " " + y.toFixed(2) + " cm /" + name + " Do Q\n";
+      y -= 8;
+      continue;
+    }
+
     const stil = STILE[zeile.stil] || STILE.normal;
     if (y - stil.hoehe < SEITE.rand) {
       seiten.push(strom);
@@ -65,10 +104,11 @@ function pdfErzeugen(zeilen) {
   seiten.push(strom);
 
   // 2. Objekte aufbauen. Nummern: 1 Katalog, 2 Seitenbaum, 3+4 Schriften,
-  //    danach je Seite ein Seiten- und ein Inhaltsobjekt.
+  //    danach je Seite ein Seiten- und ein Inhaltsobjekt, danach die Fotos.
   const objekte = [];
   const ersteSeite = 5;
   const seitenIds = seiten.map((_, i) => ersteSeite + i * 2);
+  const bildIds = bilder.map((_, i) => ersteSeite + seiten.length * 2 + i);
 
   objekte[1] = "<< /Type /Catalog /Pages 2 0 R >>";
   objekte[2] = "<< /Type /Pages /Kids [" +
@@ -77,18 +117,29 @@ function pdfErzeugen(zeilen) {
   objekte[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
   objekte[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
 
+  const xObjectEintraege = bilder
+    .map((b, i) => "/" + b.name + " " + bildIds[i] + " 0 R")
+    .join(" ");
+
   seiten.forEach((inhalt, i) => {
     const seitenId = seitenIds[i];
     objekte[seitenId] = "<< /Type /Page /Parent 2 0 R " +
       "/MediaBox [0 0 " + SEITE.breite + " " + SEITE.hoehe + "] " +
-      "/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> " +
+      "/Resources << /Font << /F1 3 0 R /F2 4 0 R >>" +
+      (xObjectEintraege ? " /XObject << " + xObjectEintraege + " >>" : "") + " >> " +
       "/Contents " + (seitenId + 1) + " 0 R >>";
     objekte[seitenId + 1] =
       "<< /Length " + inhalt.length + " >>\nstream\n" + inhalt + "endstream";
   });
 
+  bilder.forEach((b, i) => {
+    objekte[bildIds[i]] = "<< /Type /XObject /Subtype /Image /Width " + b.breitePx +
+      " /Height " + b.hoehePx + " /ColorSpace /DeviceRGB /BitsPerComponent 8 " +
+      "/Filter /DCTDecode /Length " + b.bytes.length + " >>\nstream\n" + b.bytes + "endstream";
+  });
+
   // 3. Datei zusammensetzen und dabei die Byte-Positionen merken (für xref).
-  //    Nach latin1() ist jedes Zeichen genau ein Byte, Länge = Position.
+  //    Nach latin1()/atob() ist jedes Zeichen genau ein Byte, Länge = Position.
   let datei = "%PDF-1.4\n";
   const positionen = [];
 

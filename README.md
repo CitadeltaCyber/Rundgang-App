@@ -10,31 +10,46 @@ nötig.
 
 ## Was die App kann
 
+- **Mehrere Objekte:** Umschaltbare Liegenschaften oben per Auswahlfeld, jede
+  mit eigener Kontrollpunkt-Liste und eigenem laufendem Rundgang – Wechseln
+  verwirft nichts, jedes Objekt behält seinen Stand
 - Kontrollpunkte abhaken, mit automatischem Zeitstempel und eigener Uhrzeit-Spalte
 - Laufende Uhr oben in der App, immer in deutscher Zeit (Europe/Berlin) –
   unabhängig davon, wie die Zeitzone des jeweiligen Diensthandys eingestellt ist
 - **Notiz je Kontrollpunkt:** Knopf „+ Notiz" unter jedem Punkt, für
   Auffälligkeiten genau an diesem Ort (bleibt auch beim Ent-/Abhaken erhalten
   und erscheint im PDF-Bericht)
+- **Foto je Kontrollpunkt:** Knopf „+ Foto" macht ein Handyfoto zur
+  Auffälligkeit und hängt es direkt in den PDF-Bericht ein (Beweisfoto bei
+  Schäden, offenen Türen, unbekannten Fahrzeugen etc.)
 - Mitarbeitername oder Kürzel pro Rundgang
-- **NFC-Tags:** Handy an den Tag halten, der Punkt hakt sich selbst ab
-- **Admin-Bereich mit PIN:** Kontrollpunkte umbenennen, hinzufügen, löschen,
-  NFC-Tags zuordnen, Objektnamen setzen
+- **NFC-Tags:** Handy an den Tag halten, der Punkt hakt sich selbst ab –
+  funktioniert objektübergreifend, die App wechselt beim Scan automatisch
+  zum richtigen Objekt
+- **Admin-Bereich mit PIN:** Kontrollpunkte und Objekte umbenennen,
+  hinzufügen, löschen, NFC-Tags zuordnen
 - Textfeld für allgemeine besondere Vorkommnisse (zusätzlich zu den Notizen an
   einzelnen Kontrollpunkten)
+- **Warnung bei unvollständigem Rundgang:** „Neuer Rundgang" zeigt deutlich,
+  wie viele Kontrollpunkte noch offen sind, bevor zurückgesetzt wird
+- **Verlauf:** Die letzten 10 abgeschlossenen Rundgänge bleiben abrufbar und
+  lassen sich jederzeit erneut als PDF herunterladen – ein Sicherheitsnetz,
+  falls jemand vergisst, den Bericht vorher zu sichern
 - **Bericht als PDF**, per WhatsApp o. ä. weiterleiten oder drucken
 - Alles wird sofort auf dem Handy gespeichert, funktioniert offline
-- „Neuer Rundgang" setzt die Haken zurück – Kontrollpunkte bleiben erhalten
+- „Neuer Rundgang" sichert den Stand automatisch im Verlauf und setzt dann
+  zurück – Kontrollpunkte bleiben erhalten
 
 ## Admin-Bereich
 
 Knopf **Admin** → PIN eingeben. Der Standard-PIN ist **1234** und sollte sofort
 über *PIN ändern* ersetzt werden.
 
-Im Admin-Bereich lassen sich Kontrollpunkte umbenennen, hinzufügen und löschen,
-NFC-Tags zuordnen sowie der Objektname setzen (erscheint im Bericht). *Abmelden*
-schließt den Bereich wieder; ohne Abmelden bleibt er bis zum Schließen der App
-offen.
+Im Admin-Bereich lassen sich für das gerade ausgewählte Objekt Kontrollpunkte
+umbenennen, hinzufügen und löschen sowie NFC-Tags zuordnen. Über *+ Objekt*,
+*Objekt umbenennen* und *Objekt löschen* werden ganze Liegenschaften verwaltet
+(das letzte verbleibende Objekt lässt sich nicht löschen). *Abmelden* schließt
+den Bereich wieder; ohne Abmelden bleibt er bis zum Schließen der App offen.
 
 > **Wichtig – was dieser Schutz leistet und was nicht:** Die App läuft komplett
 > auf dem Handy, ohne Server. Der PIN verhindert, dass im Dienst versehentlich
@@ -84,6 +99,20 @@ denselben Tags kombinieren lassen.
 
 Zum Programmieren der Tags wird einmalig ein Android-Handy gebraucht; benutzt
 werden können sie danach auch mit iPhones.
+
+Beim Antippen eines Adress-Tags (Weg 2) öffnet sich zunächst der normale
+Browser statt direkt der installierten App-Kachel – das ist eine technische
+Grenze von NFC bei Web-Apps. Der Kontrollpunkt wird trotzdem korrekt
+abgehakt, weil im Hintergrund dieselbe App läuft.
+
+**Wie fälschungssicher ist das wirklich?** Beide Wege sind deutlich besser
+als Haken von Hand (das ging schon immer ohne jeden Nachweis), unterscheiden
+sich aber selbst: Weg 1 prüft die echte Hardware-Kennung des Chips bei jedem
+Scan – schwer zu fälschen. Weg 2 verlässt sich auf eine geheime Adresse; wer
+sie sich mit einer NFC-Lese-App aktiv besorgt, könnte sie theoretisch von
+überall wiederverwenden, ohne am Tag zu stehen. Für den Alltag unerheblich,
+aber ehrlich gesagt: kein Ersatz für eine serverseitige, fälschungssichere
+Prüfung.
 
 ### Passende Tags kaufen
 

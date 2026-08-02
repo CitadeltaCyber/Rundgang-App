@@ -1,25 +1,36 @@
 /* Rundgang-App
  *
- * Drei getrennte Speicher:
- *   KONFIG    = Kontrollpunkte (Name, zugeordneter NFC-Tag) + Objektname.
- *               Bleibt über alle Schichten hinweg bestehen, nur Admin ändert das.
- *   AKTUELL   = laufender Rundgang (Haken, Uhrzeiten, Mitarbeiter, Vorkommnisse).
- *               Wird von "Neuer Rundgang" geleert.
- *   ADMIN     = Prüfsumme des PIN.
+ * Speicher:
+ *   KONFIG   = Liste von Objekten (Liegenschaften), je mit Namen und
+ *              Kontrollpunkten (Name, zugeordneter NFC-Tag). Bleibt über
+ *              alle Schichten hinweg bestehen, nur Admin ändert das.
+ *   AKTUELL  = laufender Rundgang JE OBJEKT (Haken, Uhrzeiten, Fotos,
+ *              Mitarbeiter, Vorkommnisse). Wird beim Wechseln des Objekts
+ *              nicht verworfen - jedes Objekt hat seinen eigenen Stand.
+ *   VERLAUF  = die letzten abgeschlossenen Berichte, als Sicherheitsnetz
+ *              falls jemand vergisst, das PDF vorher zu sichern.
+ *   ADMIN    = Prüfsumme des PIN.
  */
 
-const KONFIG_KEY = "rundgang.konfig.v3";
-const AKTUELL_KEY = "rundgang.aktuell.v3";
+const KONFIG_KEY = "rundgang.konfig.v4";
+const AKTUELL_KEY = "rundgang.aktuell.v4";
+const VERLAUF_KEY = "rundgang.verlauf.v1";
 const ADMIN_KEY = "rundgang.admin.v1";
-const ALT_KONFIG_KEY = "rundgang.konfig.v2";
-const ALT_AKTUELL_KEY = "rundgang.aktuell.v2";
+
+// Schlüssel früherer Versionen, nur zur einmaligen Übernahme beim Umstieg.
+const ALT_KONFIG_KEY_V3 = "rundgang.konfig.v3";
+const ALT_AKTUELL_KEY_V3 = "rundgang.aktuell.v3";
+const ALT_KONFIG_KEY_V2 = "rundgang.konfig.v2";
 const ALT_V1_KEY = "rundgang.v1";
 
 const STANDARD_PIN = "1234";
+const VERLAUF_MAX = 10;
+const FOTO_MAX_BREITE = 1000;
+const FOTO_QUALITAET = 0.6;
 
 // Sichtbare Versionskennung, damit sich am Bildschirm sofort prüfen lässt,
 // ob ein Handy die neueste Version geladen hat (unten auf der Seite).
-const APP_VERSION = "v5 - 2026-08-02";
+const APP_VERSION = "v6 - 2026-08-02";
 
 const STANDARDPUNKTE = [
   "Haupteingang",
@@ -30,9 +41,11 @@ const STANDARDPUNKTE = [
 ];
 
 const el = {};
-for (const id of ["liste", "datum", "uhr", "objekt", "fortschritt", "meldung", "mitarbeiter",
-  "vorkommnisse", "nfcScan", "admin", "adminBereich", "punktHinzu", "objektAendern",
-  "pinAendern", "abmelden", "pdf", "teilen", "drucken", "neu", "druck"]) {
+for (const id of ["liste", "datum", "uhr", "objektAuswahl", "fortschritt", "meldung",
+  "mitarbeiter", "vorkommnisse", "nfcScan", "admin", "adminBereich", "punktHinzu",
+  "objektHinzufuegen", "objektUmbenennen", "objektLoeschen", "pinAendern", "abmelden",
+  "pdf", "teilen", "drucken", "verlauf", "verlaufDialog", "verlaufListe",
+  "verlaufSchliessen", "neu", "druck"]) {
   el[id] = document.getElementById(id);
 }
 
@@ -59,14 +72,11 @@ function lies(key) {
   }
 }
 
-function ladeKonfig() {
-  const gespeichert = lies(KONFIG_KEY);
-  if (gespeichert && Array.isArray(gespeichert.punkte) && gespeichert.punkte.length) {
-    return gespeichert;
-  }
+function ladeKonfigV3Kompat() {
+  const v3 = lies(ALT_KONFIG_KEY_V3);
+  if (v3 && Array.isArray(v3.punkte) && v3.punkte.length) return v3;
 
-  // Aus älteren App-Versionen übernehmen, damit nichts verloren geht.
-  const v2 = lies(ALT_KONFIG_KEY);
+  const v2 = lies(ALT_KONFIG_KEY_V2);
   if (Array.isArray(v2) && v2.length) return { objekt: "", punkte: v2 };
 
   const v1 = lies(ALT_V1_KEY);
@@ -74,12 +84,23 @@ function ladeKonfig() {
   return { objekt: "", punkte: namen.map(name => ({ id: neueId(), name, tagId: null })) };
 }
 
+function ladeKonfig() {
+  const v4 = lies(KONFIG_KEY);
+  if (v4 && Array.isArray(v4.objekte) && v4.objekte.length) return v4;
+
+  // Ältere Versionen kannten nur ein einzelnes Objekt - als erstes Objekt übernehmen.
+  const v3 = ladeKonfigV3Kompat();
+  const id = neueId();
+  return { objekte: [{ id, name: v3.objekt || "Objekt 1", punkte: v3.punkte }], aktiv: id };
+}
+
 function ladeAktuell() {
-  const gespeichert = lies(AKTUELL_KEY) || lies(ALT_AKTUELL_KEY);
-  if (gespeichert && gespeichert.status) {
-    return Object.assign(leererRundgang(), gespeichert);
-  }
-  return leererRundgang();
+  const v4 = lies(AKTUELL_KEY);
+  if (v4 && typeof v4 === "object") return v4;
+
+  const v3 = lies(ALT_AKTUELL_KEY_V3);
+  if (v3 && v3.status) return { [konfig.objekte[0].id]: v3 };
+  return {};
 }
 
 function leererRundgang() {
@@ -91,9 +112,43 @@ function leererRundgang() {
   };
 }
 
+function rundgang(objektId) {
+  if (!aktuell[objektId]) aktuell[objektId] = leererRundgang();
+  return aktuell[objektId];
+}
+
+function aktivesObjekt() {
+  return konfig.objekte.find(o => o.id === konfig.aktiv) || konfig.objekte[0];
+}
+
+function aktuellerRundgang() {
+  return rundgang(aktivesObjekt().id);
+}
+
+function findePunktMitId(id) {
+  for (const objekt of konfig.objekte) {
+    const punkt = objekt.punkte.find(p => p.id === id);
+    if (punkt) return { objekt, punkt };
+  }
+  return null;
+}
+
+function findePunktMitTag(uid) {
+  for (const objekt of konfig.objekte) {
+    const punkt = objekt.punkte.find(p => p.tagId === uid);
+    if (punkt) return { objekt, punkt };
+  }
+  return null;
+}
+
 function speichern() {
   localStorage.setItem(KONFIG_KEY, JSON.stringify(konfig));
-  localStorage.setItem(AKTUELL_KEY, JSON.stringify(aktuell));
+  try {
+    localStorage.setItem(AKTUELL_KEY, JSON.stringify(aktuell));
+  } catch (e) {
+    meldung("Der Speicher des Handys ist voll (meist wegen vieler Fotos). " +
+      "Bitte den Bericht als PDF sichern und einen neuen Rundgang starten.", true);
+  }
 }
 
 /* ---------- Anzeige ---------- */
@@ -128,29 +183,45 @@ function meldungWeg() {
   el.meldung.classList.remove("sichtbar");
 }
 
-function erledigteAnzahl() {
-  return konfig.punkte.filter(p => aktuell.status[p.id]?.erledigt).length;
+function erledigteAnzahl(objekt, rund) {
+  return objekt.punkte.filter(p => rund.status[p.id]?.erledigt).length;
+}
+
+function populateObjektAuswahl(objekt) {
+  el.objektAuswahl.replaceChildren();
+  konfig.objekte.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o.id;
+    opt.textContent = o.name;
+    if (o.id === objekt.id) opt.selected = true;
+    el.objektAuswahl.append(opt);
+  });
 }
 
 function zeichnen() {
-  el.datum.textContent = datum(aktuell.begonnen);
-  el.objekt.textContent = konfig.objekt || "";
+  const objekt = aktivesObjekt();
+  const rund = aktuellerRundgang();
+
+  el.datum.textContent = datum(rund.begonnen);
+  populateObjektAuswahl(objekt);
 
   el.liste.replaceChildren();
-  konfig.punkte.forEach((punkt, i) => {
-    el.liste.append(adminAktiv ? zeileBearbeiten(punkt, i) : zeileAbhaken(punkt, i));
+  objekt.punkte.forEach((punkt, i) => {
+    el.liste.append(adminAktiv
+      ? zeileBearbeiten(objekt, punkt, i)
+      : zeileAbhaken(rund, punkt, i));
   });
 
   el.fortschritt.textContent =
-    erledigteAnzahl() + " von " + konfig.punkte.length + " Kontrollpunkten erledigt";
+    erledigteAnzahl(objekt, rund) + " von " + objekt.punkte.length + " Kontrollpunkten erledigt";
 
   el.adminBereich.hidden = !adminAktiv;
   el.admin.setAttribute("aria-pressed", String(adminAktiv));
   el.admin.textContent = adminAktiv ? "Admin: Fertig" : "Admin";
 }
 
-function zeileAbhaken(punkt, i) {
-  const stand = aktuell.status[punkt.id] || {};
+function zeileAbhaken(rund, punkt, i) {
+  const stand = rund.status[punkt.id] || {};
 
   const li = document.createElement("li");
   const zeile = document.createElement("div");
@@ -185,28 +256,53 @@ function zeileAbhaken(punkt, i) {
   zeile.append(label, zeitSpalte);
   li.append(zeile);
 
-  const notizZeile = document.createElement("div");
-  notizZeile.className = "notizZeile";
+  const extraZeile = document.createElement("div");
+  extraZeile.className = "extraZeile";
 
   if (stand.notiz) {
     const notizText = document.createElement("p");
     notizText.className = "notizText";
     notizText.textContent = "Notiz: " + stand.notiz;
-    notizZeile.append(notizText);
+    extraZeile.append(notizText);
   }
 
   const notizKnopf = document.createElement("button");
   notizKnopf.type = "button";
-  notizKnopf.className = "klein notizKnopf";
+  notizKnopf.className = "klein";
   notizKnopf.textContent = stand.notiz ? "Notiz bearbeiten" : "+ Notiz";
   notizKnopf.addEventListener("click", () => notizBearbeiten(punkt));
-  notizZeile.append(notizKnopf);
 
-  li.append(notizZeile);
+  const fotoKnopf = document.createElement("button");
+  fotoKnopf.type = "button";
+  fotoKnopf.className = "klein";
+  fotoKnopf.textContent = stand.foto ? "Foto ersetzen" : "+ Foto";
+  fotoKnopf.addEventListener("click", () => fotoAufnehmen(punkt));
+
+  extraZeile.append(notizKnopf, fotoKnopf);
+  li.append(extraZeile);
+
+  if (stand.foto) {
+    const vorschau = document.createElement("div");
+    vorschau.className = "fotoVorschau";
+
+    const bild = document.createElement("img");
+    bild.src = stand.foto;
+    bild.alt = "Foto zu " + punkt.name;
+
+    const entfernen = document.createElement("button");
+    entfernen.type = "button";
+    entfernen.className = "klein gefahr";
+    entfernen.textContent = "Foto entfernen";
+    entfernen.addEventListener("click", () => fotoEntfernen(punkt));
+
+    vorschau.append(bild, entfernen);
+    li.append(vorschau);
+  }
+
   return li;
 }
 
-function zeileBearbeiten(punkt, i) {
+function zeileBearbeiten(objekt, punkt, i) {
   const li = document.createElement("li");
   const zeile = document.createElement("div");
   zeile.className = "zeile";
@@ -271,50 +367,112 @@ function zeileBearbeiten(punkt, i) {
   return li;
 }
 
-/* ---------- Aktionen ---------- */
+/* ---------- Aktionen an Kontrollpunkten ---------- */
 
 function abhaken(id, erledigt, quelle) {
-  // Eine vorhandene Notiz bleibt erhalten, auch wenn der Haken entfernt wird.
-  const notiz = aktuell.status[id]?.notiz;
+  const rund = aktuellerRundgang();
+  const vorher = rund.status[id] || {};
+  // Notiz und Foto bleiben erhalten, egal ob der Haken gesetzt oder entfernt wird.
+  const behalten = { notiz: vorher.notiz, foto: vorher.foto, fotoBreite: vorher.fotoBreite, fotoHoehe: vorher.fotoHoehe };
+
   if (erledigt) {
     // Uhrzeit festhalten - ein Haken ohne Zeitstempel ist als Nachweis wertlos.
-    aktuell.status[id] = { erledigt: true, zeit: new Date().toISOString(), quelle, notiz };
-  } else if (notiz) {
-    aktuell.status[id] = { erledigt: false, notiz };
+    rund.status[id] = { ...behalten, erledigt: true, zeit: new Date().toISOString(), quelle };
+  } else if (behalten.notiz || behalten.foto) {
+    rund.status[id] = { ...behalten, erledigt: false };
   } else {
-    delete aktuell.status[id];
+    delete rund.status[id];
   }
   speichern();
   zeichnen();
 }
 
 function notizBearbeiten(punkt) {
-  const bisher = aktuell.status[punkt.id]?.notiz || "";
+  const rund = aktuellerRundgang();
+  const bisher = rund.status[punkt.id]?.notiz || "";
   const neu = prompt("Auffälligkeit bei „" + punkt.name + "“ (leer lassen zum Entfernen):", bisher);
   if (neu === null) return;
 
-  const stand = aktuell.status[punkt.id] || {};
+  const stand = rund.status[punkt.id] || {};
   const text = neu.trim();
-  if (!text && !stand.erledigt) {
-    delete aktuell.status[punkt.id];
+  const aktualisiert = { ...stand, notiz: text || undefined };
+
+  if (!aktualisiert.erledigt && !aktualisiert.notiz && !aktualisiert.foto) {
+    delete rund.status[punkt.id];
   } else {
-    aktuell.status[punkt.id] = { ...stand, notiz: text || undefined };
+    rund.status[punkt.id] = aktualisiert;
+  }
+  speichern();
+  zeichnen();
+}
+
+function fotoAufnehmen(punkt) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.capture = "environment";
+
+  input.addEventListener("change", () => {
+    const datei = input.files[0];
+    if (!datei) return;
+
+    const leser = new FileReader();
+    leser.onload = () => {
+      const bild = new Image();
+      bild.onload = () => {
+        const skalierung = Math.min(1, FOTO_MAX_BREITE / bild.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bild.width * skalierung);
+        canvas.height = Math.round(bild.height * skalierung);
+        canvas.getContext("2d").drawImage(bild, 0, 0, canvas.width, canvas.height);
+
+        const rund = aktuellerRundgang();
+        const stand = rund.status[punkt.id] || {};
+        rund.status[punkt.id] = {
+          ...stand,
+          foto: canvas.toDataURL("image/jpeg", FOTO_QUALITAET),
+          fotoBreite: canvas.width,
+          fotoHoehe: canvas.height
+        };
+        speichern();
+        zeichnen();
+      };
+      bild.src = leser.result;
+    };
+    leser.readAsDataURL(datei);
+  });
+
+  input.click();
+}
+
+function fotoEntfernen(punkt) {
+  const rund = aktuellerRundgang();
+  const stand = rund.status[punkt.id];
+  if (!stand?.foto) return;
+  if (!confirm("Foto zu „" + punkt.name + "“ entfernen?")) return;
+
+  const aktualisiert = { ...stand, foto: undefined, fotoBreite: undefined, fotoHoehe: undefined };
+  if (!aktualisiert.erledigt && !aktualisiert.notiz) {
+    delete rund.status[punkt.id];
+  } else {
+    rund.status[punkt.id] = aktualisiert;
   }
   speichern();
   zeichnen();
 }
 
 function punktLoeschen(id) {
-  const punkt = konfig.punkte.find(p => p.id === id);
+  const objekt = aktivesObjekt();
+  const punkt = objekt.punkte.find(p => p.id === id);
   if (!confirm("Kontrollpunkt „" + punkt.name + "“ wirklich löschen?")) return;
-  konfig.punkte = konfig.punkte.filter(p => p.id !== id);
-  delete aktuell.status[id];
+  objekt.punkte = objekt.punkte.filter(p => p.id !== id);
+  delete aktuellerRundgang().status[id];
   speichern();
   zeichnen();
 }
 
 el.punktHinzu.addEventListener("click", () => {
-  konfig.punkte.push({ id: neueId(), name: "Neuer Kontrollpunkt", tagId: null });
+  aktivesObjekt().punkte.push({ id: neueId(), name: "Neuer Kontrollpunkt", tagId: null });
   speichern();
   zeichnen();
   const felder = el.liste.querySelectorAll('input[type="text"]');
@@ -323,28 +481,165 @@ el.punktHinzu.addEventListener("click", () => {
 });
 
 el.mitarbeiter.addEventListener("input", () => {
-  aktuell.mitarbeiter = el.mitarbeiter.value;
+  aktuellerRundgang().mitarbeiter = el.mitarbeiter.value;
   speichern();
 });
 
 el.vorkommnisse.addEventListener("input", () => {
-  aktuell.vorkommnisse = el.vorkommnisse.value;
+  aktuellerRundgang().vorkommnisse = el.vorkommnisse.value;
   speichern();
 });
 
-el.neu.addEventListener("click", () => {
-  if (!confirm("Neuen Rundgang starten? Der aktuelle Stand wird gelöscht.\n\n" +
-    "Tipp: vorher den Bericht als PDF sichern.")) return;
+/* ---------- Objekte (Liegenschaften) ---------- */
 
-  const vorheriger = aktuell.mitarbeiter;
-  aktuell = leererRundgang();
-  aktuell.mitarbeiter = vorheriger; // meist dieselbe Person in der nächsten Schicht
+el.objektAuswahl.addEventListener("change", () => {
+  konfig.aktiv = el.objektAuswahl.value;
+  speichern();
+  zeichnen();
+  meldungWeg();
+  const rund = aktuellerRundgang();
+  el.mitarbeiter.value = rund.mitarbeiter || "";
+  el.vorkommnisse.value = rund.vorkommnisse || "";
+});
+
+el.objektHinzufuegen.addEventListener("click", () => {
+  const name = prompt("Name des neuen Objekts:");
+  if (!name || !name.trim()) return;
+  const id = neueId();
+  konfig.objekte.push({ id, name: name.trim(), punkte: [] });
+  konfig.aktiv = id;
+  speichern();
+  zeichnen();
+  el.mitarbeiter.value = "";
+  el.vorkommnisse.value = "";
+});
+
+el.objektUmbenennen.addEventListener("click", () => {
+  const objekt = aktivesObjekt();
+  const name = prompt("Neuer Name für dieses Objekt:", objekt.name);
+  if (name === null || !name.trim()) return;
+  objekt.name = name.trim();
+  speichern();
+  zeichnen();
+});
+
+el.objektLoeschen.addEventListener("click", () => {
+  if (konfig.objekte.length <= 1) {
+    meldung("Das letzte verbleibende Objekt kann nicht gelöscht werden.", true);
+    return;
+  }
+  const objekt = aktivesObjekt();
+  if (!confirm("Objekt „" + objekt.name + "“ mit allen Kontrollpunkten wirklich löschen?")) return;
+  konfig.objekte = konfig.objekte.filter(o => o.id !== objekt.id);
+  delete aktuell[objekt.id];
+  konfig.aktiv = konfig.objekte[0].id;
+  speichern();
+  zeichnen();
+  const rund = aktuellerRundgang();
+  el.mitarbeiter.value = rund.mitarbeiter || "";
+  el.vorkommnisse.value = rund.vorkommnisse || "";
+});
+
+/* ---------- Neuer Rundgang + Verlauf als Sicherheitsnetz ---------- */
+
+function rundIstLeer(rund) {
+  return Object.keys(rund.status).length === 0 && !rund.vorkommnisse.trim();
+}
+
+function verlaufSpeichern(verlauf) {
+  while (verlauf.length) {
+    try {
+      localStorage.setItem(VERLAUF_KEY, JSON.stringify(verlauf));
+      return;
+    } catch (e) {
+      // Speicher voll (meist wegen Fotos) - ältesten Eintrag entfernen, nochmal versuchen.
+      verlauf.pop();
+    }
+  }
+  localStorage.removeItem(VERLAUF_KEY);
+}
+
+function verlaufSchnappschuss(objekt, rund) {
+  if (rundIstLeer(rund)) return;
+  const verlauf = lies(VERLAUF_KEY) || [];
+  verlauf.unshift({
+    id: neueId(),
+    objekt: objekt.name,
+    datum: datum(rund.begonnen),
+    mitarbeiter: rund.mitarbeiter || "nicht angegeben",
+    ergebnis: erledigteAnzahl(objekt, rund) + " von " + objekt.punkte.length,
+    zeilen: berichtZeilen(objekt, rund)
+  });
+  verlaufSpeichern(verlauf.slice(0, VERLAUF_MAX));
+}
+
+el.neu.addEventListener("click", () => {
+  const objekt = aktivesObjekt();
+  const rund = aktuellerRundgang();
+  const offene = objekt.punkte.length - erledigteAnzahl(objekt, rund);
+
+  let hinweis = "Neuen Rundgang für „" + objekt.name + "“ starten?\n\n" +
+    "Der aktuelle Stand wird im Verlauf gesichert und dann zurückgesetzt.";
+  if (offene > 0) {
+    hinweis = "Achtung: " + offene + " von " + objekt.punkte.length +
+      " Kontrollpunkten sind noch NICHT erledigt.\n\n" + hinweis;
+  }
+  if (!confirm(hinweis)) return;
+
+  verlaufSchnappschuss(objekt, rund);
+
+  const vorheriger = rund.mitarbeiter;
+  aktuell[objekt.id] = leererRundgang();
+  aktuell[objekt.id].mitarbeiter = vorheriger; // meist dieselbe Person in der nächsten Schicht
   el.vorkommnisse.value = "";
   el.mitarbeiter.value = vorheriger;
   speichern();
   zeichnen();
   meldungWeg();
 });
+
+el.verlauf.addEventListener("click", () => {
+  const eintraege = lies(VERLAUF_KEY) || [];
+  el.verlaufListe.replaceChildren();
+
+  if (!eintraege.length) {
+    const li = document.createElement("li");
+    li.textContent = "Noch keine früheren Berichte gespeichert.";
+    el.verlaufListe.append(li);
+  }
+
+  eintraege.forEach(eintrag => {
+    const li = document.createElement("li");
+    li.className = "verlaufEintrag";
+
+    const info = document.createElement("span");
+    info.textContent = eintrag.objekt + " · " + eintrag.datum + " · " +
+      eintrag.mitarbeiter + " (" + eintrag.ergebnis + ")";
+
+    const knopf = document.createElement("button");
+    knopf.type = "button";
+    knopf.className = "klein";
+    knopf.textContent = "PDF";
+    knopf.addEventListener("click", () => verlaufPdfHerunterladen(eintrag));
+
+    li.append(info, knopf);
+    el.verlaufListe.append(li);
+  });
+
+  el.verlaufDialog.showModal();
+});
+
+el.verlaufSchliessen.addEventListener("click", () => el.verlaufDialog.close());
+
+function verlaufPdfHerunterladen(eintrag) {
+  const adresse = URL.createObjectURL(pdfErzeugen(eintrag.zeilen));
+  const link = document.createElement("a");
+  link.href = adresse;
+  link.download = "Rundgang_" + eintrag.objekt.replace(/[^\wäöüÄÖÜß-]+/g, "_") + "_" +
+    eintrag.datum.split(".").reverse().join("-") + ".pdf";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(adresse), 30000);
+}
 
 /* ---------- Admin ---------- */
 
@@ -412,14 +707,6 @@ el.pinAendern.addEventListener("click", async () => {
   meldung("Neuer PIN gespeichert. Bitte gut merken - er lässt sich nicht auslesen.");
 });
 
-el.objektAendern.addEventListener("click", () => {
-  const name = prompt("Name des Objekts (erscheint im Bericht):", konfig.objekt || "");
-  if (name === null) return;
-  konfig.objekt = name.trim();
-  speichern();
-  zeichnen();
-});
-
 /* ---------- NFC ---------- */
 
 async function nfcStarten() {
@@ -457,19 +744,19 @@ el.nfcScan.addEventListener("click", async () => {
 async function tagZuordnenStarten(punktId) {
   if (!(await nfcStarten())) return;
   zuordnenFuer = punktId;
-  const punkt = konfig.punkte.find(p => p.id === punktId);
+  const punkt = aktivesObjekt().punkte.find(p => p.id === punktId);
   meldung("Handy jetzt an den Tag für „" + punkt.name + "“ halten.");
 }
 
 function tagGelesen(uid) {
   if (zuordnenFuer) {
-    const punkt = konfig.punkte.find(p => p.id === zuordnenFuer);
+    const punkt = aktivesObjekt().punkte.find(p => p.id === zuordnenFuer);
     zuordnenFuer = null;
     if (!punkt) return;
 
-    const schonVergeben = konfig.punkte.find(p => p.tagId === uid && p.id !== punkt.id);
-    if (schonVergeben) {
-      meldung("Dieser Tag gehört bereits zu „" + schonVergeben.name + "“.", true);
+    const treffer = findePunktMitTag(uid);
+    if (treffer && treffer.punkt.id !== punkt.id) {
+      meldung("Dieser Tag gehört bereits zu „" + treffer.punkt.name + "“ (" + treffer.objekt.name + ").", true);
       return;
     }
     punkt.tagId = uid;
@@ -479,16 +766,19 @@ function tagGelesen(uid) {
     return;
   }
 
-  const punkt = konfig.punkte.find(p => p.tagId === uid);
-  if (!punkt) {
-    meldung("Unbekannter Tag (" + uid + "). Unter „Admin“ einem " +
-      "Kontrollpunkt zuordnen.", true);
+  const treffer = findePunktMitTag(uid);
+  if (!treffer) {
+    meldung("Unbekannter Tag (" + uid + "). Unter „Admin“ einem Kontrollpunkt zuordnen.", true);
     return;
   }
 
-  abhaken(punkt.id, true, "nfc");
+  const objektGewechselt = treffer.objekt.id !== konfig.aktiv;
+  if (objektGewechselt) konfig.aktiv = treffer.objekt.id;
+
+  abhaken(treffer.punkt.id, true, "nfc");
   if (navigator.vibrate) navigator.vibrate(120);
-  meldung("„" + punkt.name + "“ um " + uhrzeit(new Date().toISOString()) + " Uhr abgehakt.");
+  meldung((objektGewechselt ? "Objekt „" + treffer.objekt.name + "“ - " : "") +
+    "„" + treffer.punkt.name + "“ um " + uhrzeit(new Date().toISOString()) + " Uhr abgehakt.");
 }
 
 async function tagBeschreiben(punkt) {
@@ -506,47 +796,63 @@ async function tagBeschreiben(punkt) {
 
 /* ---------- Bericht ---------- */
 
-function berichtZeilen() {
+function umbrechen(text, breite) {
+  if (text.length <= breite) return [text || ""];
+  const zeilen = [];
+  let zeile = "";
+  for (const wort of text.split(" ")) {
+    if (zeile && (zeile + " " + wort).length > breite) {
+      zeilen.push(zeile);
+      zeile = wort;
+    } else {
+      zeile = zeile ? zeile + " " + wort : wort;
+    }
+  }
+  if (zeile) zeilen.push(zeile);
+  return zeilen;
+}
+
+function berichtZeilen(objekt, rund) {
   const jetzt = new Date().toISOString();
   const zeilen = [
-    { text: "Rundgang-Bericht", stil: "titel" }
-  ];
-
-  if (konfig.objekt) zeilen.push({ text: "Objekt: " + konfig.objekt, stil: "kopf" });
-
-  zeilen.push(
-    { text: "Datum: " + datum(aktuell.begonnen), stil: "normal" },
-    { text: "Mitarbeiter: " + (aktuell.mitarbeiter || "nicht angegeben"), stil: "normal" },
-    { text: "Rundgang begonnen: " + uhrzeit(aktuell.begonnen) + " Uhr", stil: "normal" },
+    { text: "Rundgang-Bericht", stil: "titel" },
+    { text: "Objekt: " + objekt.name, stil: "kopf" },
+    { text: "Datum: " + datum(rund.begonnen), stil: "normal" },
+    { text: "Mitarbeiter: " + (rund.mitarbeiter || "nicht angegeben"), stil: "normal" },
+    { text: "Rundgang begonnen: " + uhrzeit(rund.begonnen) + " Uhr", stil: "normal" },
     { text: "Bericht erstellt: " + datum(jetzt) + ", " + uhrzeit(jetzt) + " Uhr", stil: "normal" },
     { text: "", stil: "normal" },
     { text: "Kontrollpunkte", stil: "kopf" }
-  );
+  ];
 
-  konfig.punkte.forEach((punkt, i) => {
-    const stand = aktuell.status[punkt.id];
+  objekt.punkte.forEach((punkt, i) => {
+    const stand = rund.status[punkt.id];
     const ergebnis = stand?.erledigt
       ? "erledigt " + uhrzeit(stand.zeit) + " Uhr" + (stand.quelle === "nfc" ? " (NFC)" : "")
       : "NICHT ERLEDIGT";
     zeilen.push({ text: (i + 1) + ". " + punkt.name, rechts: ergebnis, stil: "normal" });
+
     if (stand?.notiz) {
       for (const stueck of umbrechen("   Auffaellig: " + stand.notiz, 95)) {
         zeilen.push({ text: stueck, stil: "klein" });
       }
+    }
+    if (stand?.foto) {
+      zeilen.push({ bild: stand.foto, breitePx: stand.fotoBreite, hoehePx: stand.fotoHoehe });
     }
   });
 
   zeilen.push(
     { text: "", stil: "normal" },
     {
-      text: "Ergebnis: " + erledigteAnzahl() + " von " + konfig.punkte.length +
+      text: "Ergebnis: " + erledigteAnzahl(objekt, rund) + " von " + objekt.punkte.length +
         " Kontrollpunkten erledigt", stil: "kopf"
     },
     { text: "", stil: "normal" },
     { text: "Besondere Vorkommnisse", stil: "kopf" }
   );
 
-  const text = aktuell.vorkommnisse.trim();
+  const text = rund.vorkommnisse.trim();
   if (text) {
     for (const absatz of text.split("\n")) {
       for (const stueck of umbrechen(absatz, 95)) {
@@ -568,48 +874,32 @@ function berichtZeilen() {
   return zeilen;
 }
 
-function umbrechen(text, breite) {
-  if (text.length <= breite) return [text || ""];
-  const zeilen = [];
-  let zeile = "";
-  for (const wort of text.split(" ")) {
-    if (zeile && (zeile + " " + wort).length > breite) {
-      zeilen.push(zeile);
-      zeile = wort;
-    } else {
-      zeile = zeile ? zeile + " " + wort : wort;
-    }
-  }
-  if (zeile) zeilen.push(zeile);
-  return zeilen;
-}
-
-function dateiname() {
-  const d = new Date(aktuell.begonnen);
+function dateiname(objekt, rund) {
+  const d = new Date(rund.begonnen);
   const teil = n => String(n).padStart(2, "0");
-  const objekt = (konfig.objekt || "Rundgang").replace(/[^\wäöüÄÖÜß-]+/g, "_");
-  return "Rundgang_" + objekt + "_" +
+  const objektName = (objekt.name || "Rundgang").replace(/[^\wäöüÄÖÜß-]+/g, "_");
+  return "Rundgang_" + objektName + "_" +
     d.getFullYear() + "-" + teil(d.getMonth() + 1) + "-" + teil(d.getDate()) + ".pdf";
 }
 
-function berichtPdf() {
-  return pdfErzeugen(berichtZeilen());
-}
-
 el.pdf.addEventListener("click", () => {
-  const adresse = URL.createObjectURL(berichtPdf());
+  const objekt = aktivesObjekt();
+  const rund = aktuellerRundgang();
+  const adresse = URL.createObjectURL(pdfErzeugen(berichtZeilen(objekt, rund)));
   const link = document.createElement("a");
   link.href = adresse;
-  link.download = dateiname();
+  link.download = dateiname(objekt, rund);
   link.click();
   setTimeout(() => URL.revokeObjectURL(adresse), 30000);
-  meldung("PDF erstellt: " + dateiname() + " (liegt in den Downloads).");
+  meldung("PDF erstellt: " + dateiname(objekt, rund) + " (liegt in den Downloads).");
 });
 
 el.teilen.addEventListener("click", async () => {
-  const datei = new File([berichtPdf()], dateiname(), { type: "application/pdf" });
-  const titel = "Rundgang " + datum(aktuell.begonnen) +
-    (konfig.objekt ? " - " + konfig.objekt : "");
+  const objekt = aktivesObjekt();
+  const rund = aktuellerRundgang();
+  const zeilen = berichtZeilen(objekt, rund);
+  const datei = new File([pdfErzeugen(zeilen)], dateiname(objekt, rund), { type: "application/pdf" });
+  const titel = "Rundgang " + datum(rund.begonnen) + " - " + objekt.name;
 
   if (navigator.canShare?.({ files: [datei] })) {
     try {
@@ -621,7 +911,8 @@ el.teilen.addEventListener("click", async () => {
   }
 
   // Kein Datei-Versand möglich (z. B. am Rechner): Bericht als Text weitergeben.
-  const text = berichtZeilen()
+  const text = zeilen
+    .filter(z => !z.bild)
     .map(z => (z.rechts ? z.text + " - " + z.rechts : z.text))
     .join("\n");
 
@@ -638,8 +929,18 @@ el.teilen.addEventListener("click", async () => {
 });
 
 el.drucken.addEventListener("click", () => {
+  const objekt = aktivesObjekt();
+  const rund = aktuellerRundgang();
   el.druck.replaceChildren();
-  for (const zeile of berichtZeilen()) {
+
+  for (const zeile of berichtZeilen(objekt, rund)) {
+    if (zeile.bild) {
+      const img = document.createElement("img");
+      img.className = "d-bild";
+      img.src = zeile.bild;
+      el.druck.append(img);
+      continue;
+    }
     const p = document.createElement("p");
     p.className = "d-" + zeile.stil;
     p.textContent = zeile.text;
@@ -659,24 +960,33 @@ function deepLinkPruefen() {
   // Aufruf über einen NFC-Tag mit Adresse, z. B. .../#punkt=p1a2b3
   const treffer = location.hash.match(/^#punkt=([\w-]+)$/);
   if (!treffer) return;
-
   history.replaceState(null, "", location.pathname + location.search);
-  const punkt = konfig.punkte.find(p => p.id === treffer[1]);
-  if (!punkt) {
+
+  const fund = findePunktMitId(treffer[1]);
+  if (!fund) {
     meldung("Der Tag zeigt auf einen Kontrollpunkt, den es nicht mehr gibt.", true);
     return;
   }
-  abhaken(punkt.id, true, "nfc");
+
+  const objektGewechselt = fund.objekt.id !== konfig.aktiv;
+  if (objektGewechselt) konfig.aktiv = fund.objekt.id;
+
+  abhaken(fund.punkt.id, true, "nfc");
   if (navigator.vibrate) navigator.vibrate(120);
-  meldung("„" + punkt.name + "“ per NFC abgehakt.");
+  meldung((objektGewechselt ? "Objekt „" + fund.objekt.name + "“ - " : "") +
+    "„" + fund.punkt.name + "“ per NFC abgehakt.");
 }
 
-el.mitarbeiter.value = aktuell.mitarbeiter || "";
-el.vorkommnisse.value = aktuell.vorkommnisse || "";
+// Erst den Deep-Link auswerten (kann das aktive Objekt wechseln), danach
+// die Eingabefelder aus dem dann tatsächlich aktiven Rundgang befüllen.
+deepLinkPruefen();
+
+const startRund = aktuellerRundgang();
+el.mitarbeiter.value = startRund.mitarbeiter || "";
+el.vorkommnisse.value = startRund.vorkommnisse || "";
 document.getElementById("version").textContent = "Version " + APP_VERSION;
 speichern();
 zeichnen();
-deepLinkPruefen();
 uhrAktualisieren();
 setInterval(uhrAktualisieren, 1000);
 
