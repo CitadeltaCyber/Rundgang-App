@@ -1,6 +1,11 @@
 // Minimaler Service Worker: legt die App-Dateien im Cache ab,
 // damit der Rundgang auch ohne Empfang funktioniert.
-const CACHE = "rundgang-v3";
+//
+// Strategie: zuerst das Netz versuchen, damit ein neues Update sofort
+// ankommt. Nur wenn kein Netz da ist (Tiefgarage, Keller), aus dem
+// Cache liefern. So bleibt die App offline nutzbar, ohne dass sich alte
+// Versionen hartnäckig halten.
+const CACHE = "rundgang-v4";
 const DATEIEN = [
   "./",
   "./index.html",
@@ -27,7 +32,14 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+
   event.respondWith(
-    caches.match(event.request).then(treffer => treffer || fetch(event.request))
+    fetch(event.request)
+      .then(antwort => {
+        const kopie = antwort.clone();
+        caches.open(CACHE).then(cache => cache.put(event.request, kopie));
+        return antwort;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

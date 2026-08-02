@@ -17,6 +17,10 @@ const ALT_V1_KEY = "rundgang.v1";
 
 const STANDARD_PIN = "1234";
 
+// Sichtbare Versionskennung, damit sich am Bildschirm sofort prüfen lässt,
+// ob ein Handy die neueste Version geladen hat (unten auf der Seite).
+const APP_VERSION = "v4 - 2026-08-02";
+
 const STANDARDPUNKTE = [
   "Haupteingang",
   "Tiefgarage",
@@ -610,6 +614,7 @@ function deepLinkPruefen() {
 
 el.mitarbeiter.value = aktuell.mitarbeiter || "";
 el.vorkommnisse.value = aktuell.vorkommnisse || "";
+document.getElementById("version").textContent = "Version " + APP_VERSION;
 speichern();
 zeichnen();
 deepLinkPruefen();
