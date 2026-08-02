@@ -10,12 +10,18 @@ nötig.
 
 ## Was die App kann
 
-- Kontrollpunkte abhaken, mit automatischem Zeitstempel
+- Kontrollpunkte abhaken, mit automatischem Zeitstempel und eigener Uhrzeit-Spalte
+- Laufende Uhr oben in der App, immer in deutscher Zeit (Europe/Berlin) –
+  unabhängig davon, wie die Zeitzone des jeweiligen Diensthandys eingestellt ist
+- **Notiz je Kontrollpunkt:** Knopf „+ Notiz" unter jedem Punkt, für
+  Auffälligkeiten genau an diesem Ort (bleibt auch beim Ent-/Abhaken erhalten
+  und erscheint im PDF-Bericht)
 - Mitarbeitername oder Kürzel pro Rundgang
 - **NFC-Tags:** Handy an den Tag halten, der Punkt hakt sich selbst ab
 - **Admin-Bereich mit PIN:** Kontrollpunkte umbenennen, hinzufügen, löschen,
   NFC-Tags zuordnen, Objektnamen setzen
-- Textfeld für besondere Vorkommnisse
+- Textfeld für allgemeine besondere Vorkommnisse (zusätzlich zu den Notizen an
+  einzelnen Kontrollpunkten)
 - **Bericht als PDF**, per WhatsApp o. ä. weiterleiten oder drucken
 - Alles wird sofort auf dem Handy gespeichert, funktioniert offline
 - „Neuer Rundgang" setzt die Haken zurück – Kontrollpunkte bleiben erhalten
@@ -113,7 +119,10 @@ sein.
 | `manifest.webmanifest` | Damit die App auf den Startbildschirm kann |
 | `sw.js` | Sorgt dafür, dass die App offline funktioniert |
 | `icon.svg` | Das App-Symbol |
-| `CNAME` | Eigene Domain für GitHub Pages |
+
+Aktuell **keine** `CNAME`-Datei – die App läuft über die Standardadresse
+`https://citadeltacyber.github.io/Rundgang-App/`. Eine eigene Domain kommt erst
+dazu, wenn die DNS-Einträge beim Domain-Anbieter gesetzt sind (siehe unten).
 
 ## Veröffentlichen mit GitHub Pages
 
@@ -122,11 +131,14 @@ sein.
 3. Unter *Source* **Deploy from a branch**, Branch auswählen, Ordner `/ (root)`
 4. **Save**, dann 1–2 Minuten warten
 
-### Eigene Domain (`www.citadeltacyber.io`)
+### Eigene Domain einrichten (später)
 
-Die Datei `CNAME` legt fest, unter welcher Adresse die Seite laufen soll. Damit
-das funktioniert, muss die Domain zusätzlich beim Domain-Anbieter auf GitHub
-zeigen. Beim Anbieter in der DNS-Verwaltung anlegen:
+**Wichtig:** Zuerst beim Domain-Anbieter die DNS-Einträge setzen, *danach*
+im Repository die `CNAME`-Datei mit der eigenen Domain anlegen – nicht
+umgekehrt, und niemals die eigene `github.io`-Adresse selbst als Domain
+eintragen (das ist kein gültiger Wert).
+
+Beim Anbieter in der DNS-Verwaltung anlegen:
 
 | Typ | Name | Wert |
 |---|---|---|
@@ -142,11 +154,9 @@ A-Einträge auf `@` anlegen:
 185.199.111.153
 ```
 
-Danach unter *Settings → Pages* **Enforce HTTPS** einschalten, sobald es
+Erst danach eine Datei `CNAME` mit dem Inhalt `www.citadeltacyber.io`
+anlegen und unter *Settings → Pages* **Enforce HTTPS** einschalten, sobald es
 anwählbar ist. Bis DNS-Änderungen greifen, kann es einige Stunden dauern.
-
-**Ohne eigene Domain:** einfach die Datei `CNAME` löschen. Dann läuft die App
-sofort unter `https://citadeltacyber.github.io/Rundgang-App/`.
 
 ### Auf dem Handy einrichten
 

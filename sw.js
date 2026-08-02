@@ -5,7 +5,7 @@
 // ankommt. Nur wenn kein Netz da ist (Tiefgarage, Keller), aus dem
 // Cache liefern. So bleibt die App offline nutzbar, ohne dass sich alte
 // Versionen hartnäckig halten.
-const CACHE = "rundgang-v4";
+const CACHE = "rundgang-v5";
 const DATEIEN = [
   "./",
   "./index.html",

@@ -19,7 +19,7 @@ const STANDARD_PIN = "1234";
 
 // Sichtbare Versionskennung, damit sich am Bildschirm sofort prüfen lässt,
 // ob ein Handy die neueste Version geladen hat (unten auf der Seite).
-const APP_VERSION = "v4 - 2026-08-02";
+const APP_VERSION = "v5 - 2026-08-02";
 
 const STANDARDPUNKTE = [
   "Haupteingang",
@@ -30,7 +30,7 @@ const STANDARDPUNKTE = [
 ];
 
 const el = {};
-for (const id of ["liste", "datum", "objekt", "fortschritt", "meldung", "mitarbeiter",
+for (const id of ["liste", "datum", "uhr", "objekt", "fortschritt", "meldung", "mitarbeiter",
   "vorkommnisse", "nfcScan", "admin", "adminBereich", "punktHinzu", "objektAendern",
   "pinAendern", "abmelden", "pdf", "teilen", "drucken", "neu", "druck"]) {
   el[id] = document.getElementById(id);
@@ -98,13 +98,24 @@ function speichern() {
 
 /* ---------- Anzeige ---------- */
 
+// Immer deutsche Zeit (Europe/Berlin), unabhaengig davon, wie das jeweilige
+// Diensthandy eingestellt ist - sonst passen die Zeiten zwischen Kollegen
+// mit unterschiedlicher Handy-Zeitzone nicht zusammen.
+const ZEITZONE = "Europe/Berlin";
+
 function uhrzeit(iso) {
-  return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("de-DE",
+    { hour: "2-digit", minute: "2-digit", timeZone: ZEITZONE });
 }
 
 function datum(iso) {
   return new Date(iso).toLocaleDateString("de-DE",
-    { day: "2-digit", month: "2-digit", year: "numeric" });
+    { day: "2-digit", month: "2-digit", year: "numeric", timeZone: ZEITZONE });
+}
+
+function uhrAktualisieren() {
+  el.uhr.textContent = new Date().toLocaleTimeString("de-DE",
+    { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: ZEITZONE });
 }
 
 function meldung(text, warnung) {
@@ -142,8 +153,11 @@ function zeileAbhaken(punkt, i) {
   const stand = aktuell.status[punkt.id] || {};
 
   const li = document.createElement("li");
+  const zeile = document.createElement("div");
+  zeile.className = "zeile";
+
   const label = document.createElement("label");
-  label.className = "zeile";
+  label.className = "ankreuzen";
 
   const box = document.createElement("input");
   box.type = "checkbox";
@@ -157,18 +171,38 @@ function zeileAbhaken(punkt, i) {
   name.className = "name";
   name.textContent = (i + 1) + ". " + punkt.name;
 
-  const zeit = document.createElement("span");
-  zeit.className = "zeit";
-  if (stand.erledigt) {
-    zeit.textContent = "kontrolliert um " + uhrzeit(stand.zeit) + " Uhr" +
-      (stand.quelle === "nfc" ? " · per NFC" : "");
-  } else if (punkt.tagId) {
-    zeit.textContent = "NFC-Tag hinterlegt";
+  const hinweis = document.createElement("span");
+  hinweis.className = "nfcHinweis";
+  hinweis.textContent = stand.quelle === "nfc" ? "per NFC" : (punkt.tagId ? "NFC-Tag hinterlegt" : "");
+
+  spalte.append(name, hinweis);
+  label.append(box, spalte);
+
+  const zeitSpalte = document.createElement("span");
+  zeitSpalte.className = "uhrzeitSpalte" + (stand.erledigt ? " erledigt" : "");
+  zeitSpalte.textContent = stand.erledigt ? uhrzeit(stand.zeit) : "--:--";
+
+  zeile.append(label, zeitSpalte);
+  li.append(zeile);
+
+  const notizZeile = document.createElement("div");
+  notizZeile.className = "notizZeile";
+
+  if (stand.notiz) {
+    const notizText = document.createElement("p");
+    notizText.className = "notizText";
+    notizText.textContent = "Notiz: " + stand.notiz;
+    notizZeile.append(notizText);
   }
 
-  spalte.append(name, zeit);
-  label.append(box, spalte);
-  li.append(label);
+  const notizKnopf = document.createElement("button");
+  notizKnopf.type = "button";
+  notizKnopf.className = "klein notizKnopf";
+  notizKnopf.textContent = stand.notiz ? "Notiz bearbeiten" : "+ Notiz";
+  notizKnopf.addEventListener("click", () => notizBearbeiten(punkt));
+  notizZeile.append(notizKnopf);
+
+  li.append(notizZeile);
   return li;
 }
 
@@ -240,11 +274,31 @@ function zeileBearbeiten(punkt, i) {
 /* ---------- Aktionen ---------- */
 
 function abhaken(id, erledigt, quelle) {
+  // Eine vorhandene Notiz bleibt erhalten, auch wenn der Haken entfernt wird.
+  const notiz = aktuell.status[id]?.notiz;
   if (erledigt) {
     // Uhrzeit festhalten - ein Haken ohne Zeitstempel ist als Nachweis wertlos.
-    aktuell.status[id] = { erledigt: true, zeit: new Date().toISOString(), quelle };
+    aktuell.status[id] = { erledigt: true, zeit: new Date().toISOString(), quelle, notiz };
+  } else if (notiz) {
+    aktuell.status[id] = { erledigt: false, notiz };
   } else {
     delete aktuell.status[id];
+  }
+  speichern();
+  zeichnen();
+}
+
+function notizBearbeiten(punkt) {
+  const bisher = aktuell.status[punkt.id]?.notiz || "";
+  const neu = prompt("Auffälligkeit bei „" + punkt.name + "“ (leer lassen zum Entfernen):", bisher);
+  if (neu === null) return;
+
+  const stand = aktuell.status[punkt.id] || {};
+  const text = neu.trim();
+  if (!text && !stand.erledigt) {
+    delete aktuell.status[punkt.id];
+  } else {
+    aktuell.status[punkt.id] = { ...stand, notiz: text || undefined };
   }
   speichern();
   zeichnen();
@@ -475,6 +529,11 @@ function berichtZeilen() {
       ? "erledigt " + uhrzeit(stand.zeit) + " Uhr" + (stand.quelle === "nfc" ? " (NFC)" : "")
       : "NICHT ERLEDIGT";
     zeilen.push({ text: (i + 1) + ". " + punkt.name, rechts: ergebnis, stil: "normal" });
+    if (stand?.notiz) {
+      for (const stueck of umbrechen("   Auffaellig: " + stand.notiz, 95)) {
+        zeilen.push({ text: stueck, stil: "klein" });
+      }
+    }
   });
 
   zeilen.push(
@@ -618,6 +677,8 @@ document.getElementById("version").textContent = "Version " + APP_VERSION;
 speichern();
 zeichnen();
 deepLinkPruefen();
+uhrAktualisieren();
+setInterval(uhrAktualisieren, 1000);
 
 if (!nfcVerfuegbar) {
   el.nfcScan.textContent = "NFC (nur Android)";

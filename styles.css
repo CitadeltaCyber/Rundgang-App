@@ -32,7 +32,16 @@ h1 { font-size: 22px; margin: 0; }
 
 #objekt { color: var(--muted); font-size: 14px; }
 
+.datumUhr { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+
 #datum { color: var(--muted); font-size: 14px; white-space: nowrap; }
+
+#uhr {
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* --- Mitarbeiterfeld --- */
 label.feld {
@@ -131,6 +140,17 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 li { margin-bottom: 10px; }
 
+.listeKopf {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 14px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+
 .zeile {
   display: flex;
   align-items: center;
@@ -142,7 +162,15 @@ li { margin-bottom: 10px; }
   min-height: 64px;
 }
 
-label.zeile { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ankreuzen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 
 input[type="checkbox"] {
   width: 26px;
@@ -156,11 +184,48 @@ input[type="checkbox"] {
 
 .name { line-height: 1.3; overflow-wrap: anywhere; }
 
-.zeit { font-size: 13px; color: var(--muted); }
+.nfcHinweis { font-size: 13px; color: var(--muted); }
 
-label.zeile:has(input:checked) { background: var(--card-done); border-color: var(--accent); }
+.nfcHinweis:empty { display: none; }
 
-label.zeile:has(input:checked) .name { color: var(--muted); text-decoration: line-through; }
+.uhrzeitSpalte {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--muted);
+  min-width: 52px;
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.uhrzeitSpalte.erledigt { color: var(--accent); font-weight: 600; }
+
+.zeile:has(input:checked) { background: var(--card-done); border-color: var(--accent); }
+
+.zeile:has(input:checked) .name { color: var(--muted); text-decoration: line-through; }
+
+/* --- Notiz je Kontrollpunkt --- */
+.notizZeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 4px 0;
+}
+
+.notizText {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  background: rgba(224, 163, 58, .12);
+  border-left: 3px solid var(--warn);
+  padding: 8px 10px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.notizKnopf { flex: 0 0 auto; }
 
 /* --- Bearbeiten-Modus --- */
 .zeile input[type="text"] {
